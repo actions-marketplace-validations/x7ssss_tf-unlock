@@ -1,38 +1,42 @@
-# tf-unlock
+# 🔓 tf-unlock
 
 A high-performance, zero-external-dependency Go CLI designed to inspect, diagnose, and safely break stale Terraform and OpenTofu remote state locks across AWS S3/DynamoDB, S3 Native object locks, Azure Blob Storage, and PostgreSQL backends.
 
-## Key Features
+---
 
-- **Zero Heavy Cloud SDK Invariant**: Eliminates multi-gigabyte cloud SDKs. Uses pure Go standard library (`net/http`, `crypto/hmac`, `crypto/sha256`, `encoding/json`, `database/sql`), `cobra v1.8.1`, and lightweight `github.com/lib/pq`.
-- **Ultra-Lightweight Binary**: Stripped binaries compile to under 10MB (target under 12MB).
-- **Universal Backend Support**:
-  - **AWS S3 + DynamoDB**: Pure Go SigV4 signer with conditional `DeleteItem` and `attribute_exists(LockID)` checks.
-  - **AWS S3 Native Object Locks**: Native S3 lockfiles (`<key>.tflock`) introduced in Terraform 1.10+ with `If-Match` conditional delete.
-  - **Azure Blob Storage**: Native Azure REST API lease breaking (`x-ms-lease-action: break`, `x-ms-lease-break-period: 0`) without modifying state blob content.
-  - **PostgreSQL Kernel Hang Buster**: Detects orphaned runner sessions in `pg_stat_activity` holding `advisory` locks and terminates them with `pg_terminate_backend(pid)`.
-- **Automatic State Detection**: Automatically parses `.terraform/terraform.tfstate` to identify the active backend type and configuration.
-- **Safety Gates**:
-  - Staleness verification (`--stale-after 30m`, default 30 minutes). Active locks younger than the threshold require `--force` to break.
-  - Double-check confirmation prompt in interactive TTY sessions.
-  - Target lock ID verification matching (`--lock-id`).
-- **CI/CD Native Mode (`auto`)**: Zero-config blocker for GitHub Actions and GitLab CI: exits 0 if clean or safely unlocked, exits 1 if an active pipeline holds the lock.
-- **Monospace Brutalist UI**: Clear, tabular terminal visualization with status badges and timestamps.
+## ⚡ Key Features
 
-## Installation
+- 📦 **Zero Heavy Cloud SDK Invariant**: Eliminates multi-gigabyte cloud SDKs. Uses pure Go standard library (`net/http`, `crypto/hmac`, `crypto/sha256`, `encoding/json`, `database/sql`), `cobra v1.8.1`, and lightweight `github.com/lib/pq`.
+- 🚀 **Ultra-Lightweight Binary**: Stripped binaries compile to under 10MB (target under 12MB).
+- 🌐 **Universal Backend Support**:
+  - 📦 **AWS S3 + DynamoDB**: Pure Go SigV4 signer with conditional `DeleteItem` and `attribute_exists(LockID)` checks.
+  - 📦 **AWS S3 Native Object Locks**: Native S3 lockfiles (`<key>.tflock`) introduced in Terraform 1.10+ with `If-Match` conditional delete.
+  - ☁️ **Azure Blob Storage**: Native Azure REST API lease breaking (`x-ms-lease-action: break`, `x-ms-lease-break-period: 0`) without modifying state blob content.
+  - 🐘 **PostgreSQL Kernel Hang Buster**: Detects orphaned runner sessions in `pg_stat_activity` holding `advisory` locks and terminates them with `pg_terminate_backend(pid)`.
+- 🔍 **Automatic State Detection**: Automatically parses `.terraform/terraform.tfstate` to identify the active backend type and configuration.
+- 🛡️ **Safety Gates**:
+  - ⏱️ Staleness verification (`--stale-after 30m`, default 30 minutes). Active locks younger than the threshold require `--force` to break.
+  - 🛑 Double-check confirmation prompt in interactive TTY sessions.
+  - 🎯 Target lock ID verification matching (`--lock-id`).
+- 🚀 **CI/CD Native Mode (`auto`)**: Zero-config blocker for GitHub Actions and GitLab CI: exits 0 if clean or safely unlocked, exits 1 if an active pipeline holds the lock.
+- 🖥️ **Monospace Brutalist UI**: Clear, tabular terminal visualization with status badges and timestamps.
 
-### Pre-built Binaries
+---
+
+## 📦 Installation
+
+### 📦 Pre-built Binaries
 
 Pre-compiled static binaries for Windows, Linux, and macOS are available in `dist/`:
 
-- `dist/tf-unlock-linux-amd64` (~9.0 MB)
-- `dist/tf-unlock-linux-arm64` (~8.4 MB)
-- `dist/tf-unlock-windows-amd64.exe` (~9.3 MB)
-- `dist/tf-unlock-windows-arm64.exe` (~8.5 MB)
-- `dist/tf-unlock-darwin-amd64` (~9.3 MB)
-- `dist/tf-unlock-darwin-arm64` (~8.7 MB)
+- 📦 `dist/tf-unlock-linux-amd64` (~9.0 MB)
+- 📦 `dist/tf-unlock-linux-arm64` (~8.4 MB)
+- 📦 `dist/tf-unlock-windows-amd64.exe` (~9.3 MB)
+- 📦 `dist/tf-unlock-windows-arm64.exe` (~8.5 MB)
+- 📦 `dist/tf-unlock-darwin-amd64` (~9.3 MB)
+- 📦 `dist/tf-unlock-darwin-arm64` (~8.7 MB)
 
-### Build From Source
+### 🔧 Build From Source
 
 Requires Go 1.23+ or Go 1.24+:
 
@@ -56,9 +60,11 @@ make test
 make dist
 ```
 
-## CLI Usage
+---
 
-### 1. Inspect Remote Lock (`inspect`)
+## 🔧 CLI Usage
+
+### 1. 🔍 Inspect Remote Lock (`inspect`)
 
 Performs a read-only query to diagnose state locks:
 
@@ -86,7 +92,7 @@ Example Output:
 +------------------------------------------------------------------------------+
 ```
 
-### 2. Safely Break Lock (`break`)
+### 2. ⚡ Safely Break Lock (`break`)
 
 Releases a state lock with safety checks:
 
@@ -104,7 +110,7 @@ tf-unlock break --force
 tf-unlock break --stale-after 45m
 ```
 
-### 3. CI Pipeline Blocker & Auto-Breaker (`auto`)
+### 3. 🚀 CI Pipeline Blocker & Auto-Breaker (`auto`)
 
 Designed as a pre-step in CI/CD pipelines before `terraform apply`:
 
@@ -112,10 +118,10 @@ Designed as a pre-step in CI/CD pipelines before `terraform apply`:
 tf-unlock auto --stale-after 1h
 ```
 
-- **Exit code 0**: Backend is unlocked and clean, or a stale lock older than 1h was automatically released.
-- **Exit code 1**: An active lock younger than 1h is currently held. CI aborts immediately to protect state.
+- ✅ **Exit code 0**: Backend is unlocked and clean, or a stale lock older than 1h was automatically released.
+- ❌ **Exit code 1**: An active lock younger than 1h is currently held. CI aborts immediately to protect state.
 
-#### GitHub Actions Example
+#### 🐙 GitHub Actions Example
 
 ```yaml
 jobs:
@@ -136,7 +142,7 @@ jobs:
         run: terraform apply -auto-approve
 ```
 
-#### GitLab CI Example
+#### 🦊 GitLab CI Example
 
 ```yaml
 terraform_deploy:
@@ -147,31 +153,35 @@ terraform_deploy:
     - terraform apply -auto-approve
 ```
 
-## Supported Remote Backends
+---
 
-### 1. AWS S3 + DynamoDB (`s3-dynamodb`)
-- Partition key: `LockID` matching `<bucket>/<key>`.
-- Signed using pure Go AWS SigV4 (`pkg/signer/sigv4.go`).
-- Uses DynamoDB conditional delete expressions.
-- Credentials resolved from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, or `~/.aws/credentials`.
+## 🌐 Supported Remote Backends
 
-### 2. AWS S3 Native Lockfiles (`s3-native`)
-- Compatible with Terraform 1.10+ native lockfiles (`use_lockfile = true`).
-- Inspects and deletes `<key>.tflock`.
-- Employs `If-Match: <etag>` conditional HTTP delete to prevent race conditions.
+### 1. 📦 AWS S3 + DynamoDB (`s3-dynamodb`)
+- 🔍 Partition key: `LockID` matching `<bucket>/<key>`.
+- 🔐 Signed using pure Go AWS SigV4 (`pkg/signer/sigv4.go`).
+- ⚡ Uses DynamoDB conditional delete expressions.
+- 🛡️ Credentials resolved from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, or `~/.aws/credentials`.
 
-### 3. Azure Blob Storage (`azurerm`)
-- Inspects blob lease status (`x-ms-lease-status`, `x-ms-lease-state`).
-- Issues native HTTP PUT with `comp=lease`, `x-ms-lease-action: break`, and `x-ms-lease-break-period: 0`.
-- Releases lease instantly without modifying blob contents.
-- Supports Azure SharedKey authentication, SAS tokens, and Bearer tokens.
+### 2. 📦 AWS S3 Native Lockfiles (`s3-native`)
+- 🔧 Compatible with Terraform 1.10+ native lockfiles (`use_lockfile = true`).
+- 🔍 Inspects and deletes `<key>.tflock`.
+- 🛡️ Employs `If-Match: <etag>` conditional HTTP delete to prevent race conditions.
 
-### 4. PostgreSQL Advisory Locks (`postgres`)
-- Queries `pg_locks` joined with `pg_stat_activity` for active `advisory` locks.
-- Identifies runner processes that died without TCP FIN (kernel keepalive hangs).
-- Safely terminates stranded backend with `SELECT pg_terminate_backend(pid)`.
+### 3. ☁️ Azure Blob Storage (`azurerm`)
+- 🔍 Inspects blob lease status (`x-ms-lease-status`, `x-ms-lease-state`).
+- ⚡ Issues native HTTP PUT with `comp=lease`, `x-ms-lease-action: break`, and `x-ms-lease-break-period: 0`.
+- 🛡️ Releases lease instantly without modifying blob contents.
+- 🔐 Supports Azure SharedKey authentication, SAS tokens, and Bearer tokens.
 
-## Project Structure
+### 4. 🐘 PostgreSQL Advisory Locks (`postgres`)
+- 🔍 Queries `pg_locks` joined with `pg_stat_activity` for active `advisory` locks.
+- ⚠️ Identifies runner processes that died without TCP FIN (kernel keepalive hangs).
+- ⚡ Safely terminates stranded backend with `SELECT pg_terminate_backend(pid)`.
+
+---
+
+## 📁 Project Structure
 
 ```text
 tf-unlock/
@@ -202,7 +212,9 @@ tf-unlock/
 └── go.mod                # Go module definition
 ```
 
-## Running Tests
+---
+
+## 🩺 Running Tests
 
 Run the full test suite across all packages:
 
@@ -210,6 +222,10 @@ Run the full test suite across all packages:
 go test -v ./...
 ```
 
-## License
+---
 
-Apache 2.0
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2026 x7ssss
