@@ -1,0 +1,14 @@
+# Binaries and build artifacts
+tf-unlock
+tf-unlock.exe
+dist/
+*.test
+*.out
+*.prof
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
