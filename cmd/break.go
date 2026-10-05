@@ -8,16 +8,15 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/x7ssss/tf-unlock/pkg/detector"
 	"github.com/x7ssss/tf-unlock/pkg/safety"
 	"github.com/x7ssss/tf-unlock/pkg/ui"
 )
 
 var (
-	breakLockIDFlag  string
-	breakForceFlag   bool
-	breakStaleAfter  time.Duration
-	breakYesFlag     bool
+	breakLockIDFlag string
+	breakForceFlag  bool
+	breakStaleAfter time.Duration
+	breakYesFlag    bool
 )
 
 var breakCmd = &cobra.Command{
@@ -28,7 +27,7 @@ var breakCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		mgr, _, err := detector.DetectAndLoad(statePathFlag)
+		mgr, err := loadManager()
 		if err != nil {
 			return fmt.Errorf("backend detection failed: %w", err)
 		}
@@ -57,7 +56,17 @@ var breakCmd = &cobra.Command{
 			return err
 		}
 
-		// 3. Double-check confirmation
+		// 3. Runner termination gate
+		if err := verifyRunner(ctx, breakForceFlag); err != nil {
+			return err
+		}
+
+		if dryRunFlag {
+			fmt.Fprintf(os.Stdout, "[dry-run] all safety checks passed; would break lock %s on %s\n", lock.ID, mgr.Target())
+			return nil
+		}
+
+		// 4. Double-check confirmation
 		nonInteractive := !safety.IsTerminal(os.Stdin) || breakYesFlag
 		confirmed, err := safety.ConfirmBreak(os.Stdin, os.Stdout, lock.ID, breakForceFlag, nonInteractive)
 		if err != nil {
@@ -67,7 +76,7 @@ var breakCmd = &cobra.Command{
 			return errors.New("aborted by user: lock release cancelled")
 		}
 
-		// 4. Execute lock release
+		// 5. Execute lock release
 		if err := mgr.Break(ctx, lock.ID, breakForceFlag); err != nil {
 			return fmt.Errorf("failed to break lock %s: %w", lock.ID, err)
 		}

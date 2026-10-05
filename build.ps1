@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $BinaryName = "tf-unlock"
-$Pkg = "./cmd/tf-unlock"
+$Pkg = "."
 $LdFlags = "-s -w"
 
 if ($Clean) {

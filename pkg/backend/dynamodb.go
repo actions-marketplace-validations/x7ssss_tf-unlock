@@ -122,9 +122,10 @@ type getItemResponse struct {
 }
 
 type deleteItemRequest struct {
-	TableName           string                   `json:"TableName"`
-	Key                 map[string]ddbStringAttr `json:"Key"`
-	ConditionExpression string                   `json:"ConditionExpression,omitempty"`
+	TableName                 string                   `json:"TableName"`
+	Key                       map[string]ddbStringAttr `json:"Key"`
+	ConditionExpression       string                   `json:"ConditionExpression,omitempty"`
+	ExpressionAttributeValues map[string]ddbStringAttr `json:"ExpressionAttributeValues,omitempty"`
 }
 
 func (d *DynamoDBManager) Inspect(ctx context.Context) (*LockInfo, error) {
@@ -189,6 +190,19 @@ func (d *DynamoDBManager) Inspect(ctx context.Context) (*LockInfo, error) {
 	return &lock, nil
 }
 
+// BuildDeleteCondition returns the DynamoDB conditional-delete expression. When an
+// expected lock ID is supplied, the delete only succeeds if the stored Info
+// payload still contains that ID, preventing deletion of a lock re-acquired by
+// another runner between inspection and deletion.
+func BuildDeleteCondition(expectedID string) (string, map[string]ddbStringAttr) {
+	if expectedID == "" {
+		return "attribute_exists(LockID)", nil
+	}
+	return "attribute_exists(LockID) AND contains(Info, :expectedID)", map[string]ddbStringAttr{
+		":expectedID": {S: expectedID},
+	}
+}
+
 func (d *DynamoDBManager) Break(ctx context.Context, lockID string, force bool) error {
 	reqBody := deleteItemRequest{
 		TableName: d.TableName,
@@ -199,7 +213,7 @@ func (d *DynamoDBManager) Break(ctx context.Context, lockID string, force bool) 
 
 	// Use conditional delete unless forced
 	if !force {
-		reqBody.ConditionExpression = "attribute_exists(LockID)"
+		reqBody.ConditionExpression, reqBody.ExpressionAttributeValues = BuildDeleteCondition(lockID)
 	}
 
 	payload, err := json.Marshal(reqBody)

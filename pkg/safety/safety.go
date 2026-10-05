@@ -2,6 +2,7 @@ package safety
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/x7ssss/tf-unlock/pkg/backend"
+	"github.com/x7ssss/tf-unlock/pkg/ghrun"
 )
 
 // DefaultStaleThreshold is the default staleness threshold for state locks.
@@ -102,4 +104,25 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm %ds", mins, secs)
 	}
 	return fmt.Sprintf("%ds", secs)
+}
+
+// RunLookup resolves a workflow run's state.
+type RunLookup interface {
+	GetRun(ctx context.Context, repo, runID string) (*ghrun.Run, error)
+}
+
+// VerifyRunnerTerminated refuses to proceed while the lock holder's workflow run
+// is still active. Lookup failures are fatal unless force is set (fail closed).
+func VerifyRunnerTerminated(ctx context.Context, lookup RunLookup, repo, runID string, force bool) error {
+	if force || runID == "" {
+		return nil
+	}
+	run, err := lookup.GetRun(ctx, repo, runID)
+	if err != nil {
+		return fmt.Errorf("could not verify runner termination for run %s: %w", runID, err)
+	}
+	if run.Classify() != ghrun.Terminal {
+		return fmt.Errorf("refusing to break lock: run %s is still active (status=%s); wait for it to finish or use --force", runID, run.Status)
+	}
+	return nil
 }

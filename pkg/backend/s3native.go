@@ -17,14 +17,14 @@ import (
 
 // S3NativeManager manages native S3 lockfiles (<key>.tflock) introduced in Terraform 1.10+.
 type S3NativeManager struct {
-	Bucket    string
-	Key       string
-	Region    string
-	Endpoint  string
-	LockFile  string
-	lastETag  string
-	client    *http.Client
-	signer    *signer.Signer
+	Bucket   string
+	Key      string
+	Region   string
+	Endpoint string
+	LockFile string
+	lastETag string
+	client   *http.Client
+	signer   *signer.Signer
 }
 
 // S3NativeConfig holds parameters needed to initialize S3NativeManager.

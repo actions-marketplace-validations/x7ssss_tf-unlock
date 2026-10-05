@@ -2,12 +2,12 @@ package backend
 
 import (
 	"context"
+	"github.com/x7ssss/tf-unlock/pkg/signer"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"github.com/x7ssss/tf-unlock/pkg/signer"
 )
 
 func TestDynamoDBManager_Inspect_ActiveLock(t *testing.T) {
@@ -156,5 +156,55 @@ func TestDynamoDBManager_Break_ConditionalFailed(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "already been released") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestBuildDeleteCondition(t *testing.T) {
+	expr, vals := BuildDeleteCondition("")
+	if expr != "attribute_exists(LockID)" || vals != nil {
+		t.Errorf("empty id: got %q %v", expr, vals)
+	}
+	expr, vals = BuildDeleteCondition("abc-123")
+	if expr != "attribute_exists(LockID) AND contains(Info, :expectedID)" {
+		t.Errorf("unexpected expression %q", expr)
+	}
+	if vals[":expectedID"].S != "abc-123" {
+		t.Errorf("unexpected values %v", vals)
+	}
+}
+
+func TestDynamoDBManager_Break_SendsConditionalExpression(t *testing.T) {
+	tests := []struct {
+		name      string
+		force     bool
+		wantCond  bool
+		wantValue bool
+	}{
+		{"safe delete is conditional on lock ID", false, true, true},
+		{"forced delete is unconditional", true, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var body string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				b, _ := io.ReadAll(r.Body)
+				body = string(b)
+				w.Write([]byte(`{}`))
+			}))
+			defer server.Close()
+			mgr := &DynamoDBManager{
+				TableName: "t", Endpoint: server.URL, LockKey: "b/k", Region: "us-east-1",
+				client: server.Client(),
+				signer: signer.NewSigner(&signer.Credentials{AccessKeyID: "A", SecretAccessKey: "S"}),
+			}
+			if err := mgr.Break(context.Background(), "lock-abc", tt.force); err != nil {
+				t.Fatal(err)
+			}
+			hasCond := strings.Contains(body, "attribute_exists(LockID) AND contains(Info, :expectedID)")
+			hasVal := strings.Contains(body, `":expectedID":{"S":"lock-abc"}`)
+			if hasCond != tt.wantCond || hasVal != tt.wantValue {
+				t.Errorf("body = %s", body)
+			}
+		})
 	}
 }

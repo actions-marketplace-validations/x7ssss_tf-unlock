@@ -1,6 +1,7 @@
 # Binaries and build artifacts
-tf-unlock
-tf-unlock.exe
+/tf-unlock
+/tf-unlock.exe
+/bin/
 dist/
 *.test
 *.out

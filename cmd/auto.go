@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/x7ssss/tf-unlock/pkg/detector"
 	"github.com/x7ssss/tf-unlock/pkg/ui"
 )
 
@@ -23,7 +22,7 @@ var autoCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		mgr, _, err := detector.DetectAndLoad(statePathFlag)
+		mgr, err := loadManager()
 		if err != nil {
 			return fmt.Errorf("backend detection failed: %w", err)
 		}
@@ -41,6 +40,13 @@ var autoCmd = &cobra.Command{
 
 		// 2. Lock is stale: break automatically
 		if lock.IsStale(autoStaleAfter) {
+			if err := verifyRunner(ctx, false); err != nil {
+				return err
+			}
+			if dryRunFlag {
+				fmt.Fprintf(os.Stdout, "[dry-run] would break stale lock %s on %s\n", lock.ID, mgr.Target())
+				return nil
+			}
 			if err := mgr.Break(ctx, lock.ID, false); err != nil {
 				return fmt.Errorf("failed to auto-break stale lock %s: %w", lock.ID, err)
 			}

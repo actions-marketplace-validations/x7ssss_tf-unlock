@@ -1,0 +1,72 @@
+name: 'tf-unlock'
+description: 'Safely break stale Terraform/OpenTofu state locks, but only after the lock-holding runner is proven dead.'
+author: 'x7ssss'
+branding:
+  icon: 'unlock'
+  color: 'blue'
+
+inputs:
+  backend-type:
+    description: 'Lock backend: s3-dynamodb or s3-native. Leave empty to auto-detect from .terraform/terraform.tfstate.'
+    required: false
+    default: ''
+  table-name:
+    description: 'DynamoDB lock table (backend-type s3-dynamodb).'
+    required: false
+    default: ''
+  lock-id:
+    description: 'Expected lock ID. The lock is only broken if it still matches. Empty = auto mode (break only stale locks).'
+    required: false
+    default: ''
+  s3-bucket:
+    description: 'S3 bucket holding the Terraform state.'
+    required: false
+    default: ''
+  s3-key:
+    description: 'S3 key of the Terraform state file.'
+    required: false
+    default: ''
+  timeout-tolerance:
+    description: 'Minimum lock age before it may be broken (e.g. 30m, 1h). Younger locks are refused.'
+    required: false
+    default: '30m'
+  dry-run:
+    description: 'Run all safety checks but never delete the lock.'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'GitHub token used to look up the lock holder workflow run.'
+    required: false
+    default: ${{ github.token }}
+  github-run-id:
+    description: 'Workflow run ID that owns the lock. When set, the lock is only broken if that run has terminated.'
+    required: false
+    default: ''
+  version:
+    description: 'tf-unlock release tag to download (e.g. v1.0.0). Defaults to the action ref; falls back to building from source.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run tf-unlock
+      shell: bash
+      env:
+        TFU_ACTION_PATH: ${{ github.action_path }}
+        TFU_ACTION_REF: ${{ github.action_ref }}
+        TFU_RUNNER_OS: ${{ runner.os }}
+        TFU_RUNNER_ARCH: ${{ runner.arch }}
+        TFU_VERSION: ${{ inputs.version }}
+        TFU_BACKEND_TYPE: ${{ inputs.backend-type }}
+        TFU_TABLE_NAME: ${{ inputs.table-name }}
+        TFU_LOCK_ID: ${{ inputs.lock-id }}
+        TFU_S3_BUCKET: ${{ inputs.s3-bucket }}
+        TFU_S3_KEY: ${{ inputs.s3-key }}
+        TFU_TIMEOUT_TOLERANCE: ${{ inputs.timeout-tolerance }}
+        TFU_DRY_RUN: ${{ inputs.dry-run }}
+        TFU_GITHUB_TOKEN: ${{ inputs.github-token }}
+        TFU_GITHUB_RUN_ID: ${{ inputs.github-run-id }}
+        TFU_GITHUB_REPOSITORY: ${{ github.repository }}
+        TFU_GITHUB_API_URL: ${{ github.api_url }}
+      run: bash "$TFU_ACTION_PATH/action-entrypoint.sh"

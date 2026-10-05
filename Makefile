@@ -1,5 +1,5 @@
 BINARY_NAME := tf-unlock
-PKG := ./cmd/tf-unlock
+PKG := .
 LDFLAGS := -s -w
 
 .PHONY: all build test clean dist

@@ -1,6 +1,43 @@
 # 🔓 tf-unlock
 
-A high-performance, zero-external-dependency Go CLI designed to inspect, diagnose, and safely break stale Terraform and OpenTofu remote state locks across AWS S3/DynamoDB, S3 Native object locks, Azure Blob Storage, and PostgreSQL backends.
+Safely break stale Terraform and OpenTofu state locks, but only after the runner that owns the lock is proven dead.
+
+## 🚀 Quickstart
+
+```yaml
+- uses: x7ssss/tf-unlock@v1
+  with: { backend-type: s3-dynamodb, table-name: terraform-locks, s3-bucket: my-bucket, s3-key: prod/terraform.tfstate }
+```
+
+Add `dry-run: true` to run every safety check without deleting anything. See [Action inputs](#-github-action-inputs).
+
+## 🛡️ Safety Model: why naive `force-unlock` is dangerous
+
+`terraform force-unlock <ID>` deletes the lock unconditionally. If the "stuck" run is actually still alive (slow API, long apply, network blip), a second `apply` starts against the same state: **split-brain**, with interleaved writes, corrupted state and orphaned resources.
+
+tf-unlock only releases a lock when all of these checks pass:
+
+1. **Tolerance window**: the lock must be older than `timeout-tolerance` (default 30m). Younger locks are refused.
+2. **Lock ID match**: the lock currently held must be the `lock-id` you expect.
+3. **Runner termination**: with `github-run-id`, the GitHub API must report that run as terminal (`completed`, `cancelled`, `timed_out`, `failure`). `queued`, `in_progress`, `waiting` or any unknown state, and any API error, block the unlock (fail closed).
+4. **Atomic conditional delete**: DynamoDB uses `attribute_exists(LockID) AND contains(Info, :expectedID)`, S3 uses `If-Match: <etag>`. If another runner re-acquires the lock between check and delete, the delete fails instead of removing it.
+
+`--dry-run` executes all four checks and then stops before the delete.
+
+## 🧩 GitHub Action Inputs
+
+| Input | Description | Default |
+|---|---|---|
+| `backend-type` | `s3-dynamodb` or `s3-native` (empty = auto-detect from `.terraform/terraform.tfstate`) | `""` |
+| `table-name` | DynamoDB lock table | `""` |
+| `lock-id` | Expected lock ID (empty = auto mode, only stale locks are cleared) | `""` |
+| `s3-bucket` / `s3-key` | State bucket and key | `""` |
+| `timeout-tolerance` | Minimum lock age before it may be broken | `30m` |
+| `dry-run` | Run checks only, never delete | `false` |
+| `github-token` | Token for workflow-run lookups | `${{ github.token }}` |
+| `github-run-id` | Run that owns the lock; unlock only after it terminates | `""` |
+
+AWS credentials are read from the standard `AWS_*` environment variables. The Action downloads the matching release binary (Linux/macOS/Windows, amd64/arm64) and falls back to building from source when Go is available.
 
 ---
 
@@ -9,7 +46,7 @@ A high-performance, zero-external-dependency Go CLI designed to inspect, diagnos
 - 📦 **Zero Heavy Cloud SDK Invariant**: Eliminates multi-gigabyte cloud SDKs. Uses pure Go standard library (`net/http`, `crypto/hmac`, `crypto/sha256`, `encoding/json`, `database/sql`), `cobra v1.8.1`, and lightweight `github.com/lib/pq`.
 - 🚀 **Ultra-Lightweight Binary**: Stripped binaries compile to under 10MB (target under 12MB).
 - 🌐 **Universal Backend Support**:
-  - 📦 **AWS S3 + DynamoDB**: Pure Go SigV4 signer with conditional `DeleteItem` and `attribute_exists(LockID)` checks.
+  - 📦 **AWS S3 + DynamoDB**: Pure Go SigV4 signer with conditional `DeleteItem` using `attribute_exists(LockID) AND contains(Info, :expectedID)`.
   - 📦 **AWS S3 Native Object Locks**: Native S3 lockfiles (`<key>.tflock`) introduced in Terraform 1.10+ with `If-Match` conditional delete.
   - ☁️ **Azure Blob Storage**: Native Azure REST API lease breaking (`x-ms-lease-action: break`, `x-ms-lease-break-period: 0`) without modifying state blob content.
   - 🐘 **PostgreSQL Kernel Hang Buster**: Detects orphaned runner sessions in `pg_stat_activity` holding `advisory` locks and terminates them with `pg_terminate_backend(pid)`.
@@ -43,7 +80,7 @@ Requires Go 1.23+ or Go 1.24+:
 ```bash
 git clone https://github.com/x7ssss/tf-unlock.git
 cd tf-unlock
-go build -ldflags="-s -w" -o tf-unlock ./cmd/tf-unlock
+go build -ldflags="-s -w" -o bin/tf-unlock .
 ```
 
 Using build scripts:
@@ -185,46 +222,48 @@ terraform_deploy:
 
 ```text
 tf-unlock/
-├── cmd/
-│   ├── tf-unlock/
-│   │   └── main.go       # Root binary entrypoint
-│   ├── auto.go           # CI blocker & stale lock auto-breaker
-│   ├── break.go          # Controlled lock breaker with safety gates
-│   ├── inspect.go        # Read-only lock inspector
-│   └── root.go           # Cobra root command setup
+├── main.go               # Binary entrypoint
+├── action.yml            # GitHub Marketplace composite action
+├── action-entrypoint.sh  # Maps action inputs to CLI flags
+├── cmd/                  # Cobra commands: auto, break, inspect, root
 ├── pkg/
-│   ├── backend/
-│   │   ├── azure.go      # Azure Blob lease manager
-│   │   ├── driver.go     # LockManager interface and LockInfo schema
-│   │   ├── dynamodb.go   # AWS DynamoDB lock manager
-│   │   ├── postgres.go   # PostgreSQL advisory lock manager
-│   │   └── s3native.go   # S3 native object lock manager
-│   ├── detector/
-│   │   └── detector.go   # State file parser and backend detector
-│   ├── safety/
-│   │   └── safety.go     # Staleness check, lock ID verification, TTY prompt
-│   ├── signer/
-│   │   └── sigv4.go      # Pure Go AWS SigV4 signer
-│   └── ui/
-│       └── table.go      # Brutalist monospace terminal output
-├── build.ps1             # PowerShell cross-compilation script
-├── Makefile              # Make targets for build, test, and dist
-└── go.mod                # Go module definition
+│   ├── backend/          # DynamoDB, S3 native, Azure, PostgreSQL lock managers
+│   ├── detector/         # State file parser and backend detector
+│   ├── ghrun/            # GitHub workflow-run liveness checker
+│   ├── safety/           # Tolerance, lock ID and runner-termination gates
+│   ├── signer/           # Pure Go AWS SigV4 signer
+│   └── ui/               # Terminal output
+└── .github/workflows/ci.yml   # Tests and cross-platform release builds
 ```
 
 ---
 
-## 🩺 Running Tests
-
-Run the full test suite across all packages:
+## 🧪 Running Tests
 
 ```bash
-go test -v ./...
+go test -v -race -cover ./...
 ```
+
+---
+
+## 🤝 Community vs Team
+
+| | **Community (Free, OSS / MIT)** | **Team ($29/mo or GitHub Sponsors)** |
+|---|---|---|
+| Local single-repo lock recovery | ✅ | ✅ |
+| CLI (`inspect`, `break`, `auto`) | ✅ | ✅ |
+| `--dry-run` mode | ✅ | ✅ |
+| GitHub Action | ✅ | ✅ |
+| Multi-repo global concurrency queue | - | ✅ |
+| Slack / Teams incident alerts before unlocking | - | ✅ |
+| Compliance audit logs | - | ✅ |
+
+The Team features are not part of this repository. 👉 **[Get Team access via GitHub Sponsors](https://github.com/sponsors/x7ssss)**
 
 ---
 
 ## 📄 License
+
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
